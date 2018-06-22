@@ -4,9 +4,9 @@
 	else if(typeof define === 'function' && define.amd)
 		define([], factory);
 	else if(typeof exports === 'object')
-		exports["sunburst"] = factory();
+		exports["double_bar"] = factory();
 	else
-		root["sunburst"] = factory();
+		root["double_bar"] = factory();
 })(typeof self !== 'undefined' ? self : this, function() {
 return /******/ (function(modules) { // webpackBootstrap
 /******/ 	// The module cache
@@ -70,7 +70,7 @@ return /******/ (function(modules) { // webpackBootstrap
 /******/ 	__webpack_require__.p = "";
 /******/
 /******/ 	// Load entry module and return exports
-/******/ 	return __webpack_require__(__webpack_require__.s = 476);
+/******/ 	return __webpack_require__(__webpack_require__.s = 488);
 /******/ })
 /************************************************************************/
 /******/ ([
@@ -23106,150 +23106,726 @@ var handleErrors = function (vis, res, options) {
 /* 473 */,
 /* 474 */,
 /* 475 */,
-/* 476 */
+/* 476 */,
+/* 477 */,
+/* 478 */,
+/* 479 */,
+/* 480 */,
+/* 481 */,
+/* 482 */,
+/* 483 */,
+/* 484 */,
+/* 485 */,
+/* 486 */,
+/* 487 */,
+/* 488 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 Object.defineProperty(__webpack_exports__, "__esModule", { value: true });
+/* harmony export (immutable) */ __webpack_exports__["sequence"] = sequence;
+/* harmony export (immutable) */ __webpack_exports__["truncateText"] = truncateText;
 /* harmony import */ var __WEBPACK_IMPORTED_MODULE_0_d3__ = __webpack_require__(172);
-/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1__common_utils__ = __webpack_require__(464);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_d3_tip__ = __webpack_require__(489);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_1_d3_tip___default = __webpack_require__.n(__WEBPACK_IMPORTED_MODULE_1_d3_tip__);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_2__common_utils__ = __webpack_require__(464);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_3_d3_scale__ = __webpack_require__(397);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_4_d3_array__ = __webpack_require__(3);
+/* harmony import */ var __WEBPACK_IMPORTED_MODULE_5_d3_selection__ = __webpack_require__(1);
 
 
-// recursively create children array
-function descend(obj, depth) {
-    if (depth === void 0) { depth = 0; }
-    var arr = [];
-    for (var k in obj) {
-        if (k === '__data') {
-            continue;
-        }
-        var child = {
-            name: k,
-            depth: depth,
-            children: descend(obj[k], depth + 1)
-        };
-        if ('__data' in obj[k]) {
-            child.data = obj[k].__data;
-        }
-        arr.push(child);
-    }
-    return arr;
+
+
+
+
+function rowTooltipSelector(item) {
+    var ratio = item.right > 0 ? item.left / item.right : 0;
+    return "<span>Ratio: " + (ratio * 100).toFixed(0) + "%</span>";
 }
-function burrow(table) {
-    // create nested object
-    var obj = {};
-    table.forEach(function (row) {
-        // start at root
-        var layer = obj;
-        // create children as nested objects
-        row.taxonomy.value.forEach(function (key) {
-            layer[key] = key in layer ? layer[key] : {};
-            layer = layer[key];
-        });
-        layer.__data = row;
-    });
-    // use descend to create nested children arrays
-    return {
-        name: 'root',
-        children: descend(obj, 1),
-        depth: 0
+var style = "\n<style>\n  .d3-tooltip {\n    background: #000d;\n    color: white;\n    padding: 3px;\n    border-radius: 4px;\n  }\n  g.chart-row {\n    cursor: pointer;\n  }\n\n  g.chart-row:hover {\n    fill: #888;\n  }\n\n  g.chart-row:active {\n    fill: #aaa;\n  }\n</style>\n";
+/**
+ * Creates a sequential array of the indicated size.
+ */
+function sequence(size) {
+    return Array.from(Array(size), function (_, i) { return i; });
+}
+function rowNameSelector(row) {
+    return row.name;
+}
+function rowLeftSelector(row) {
+    return row.left;
+}
+function rowRightSelector(row) {
+    return row.right;
+}
+function truncateText(width) {
+    return function (_, index, array) {
+        var el = array[index];
+        var self = Object(__WEBPACK_IMPORTED_MODULE_5_d3_selection__["k" /* select */])(el);
+        var textLength = el.getComputedTextLength();
+        var text = self.text();
+        while (textLength > width && text.length > 0) {
+            text = text.slice(0, -1);
+            self.text(text + '…');
+            textLength = el.getComputedTextLength();
+        }
     };
 }
+function validateInputs(queryResponse) {
+    return Object(__WEBPACK_IMPORTED_MODULE_2__common_utils__["b" /* handleErrors */])(this, queryResponse, {
+        min_pivots: 0,
+        max_pivots: 0,
+        min_dimensions: 1,
+        max_dimensions: 1,
+        min_measures: 2,
+        max_measures: 2
+    });
+}
+/**
+ * Generates the text elements for all left and right bar values,
+ * then determines which one has the biggest display width and stores that value for later use.
+ *
+ * Deletes these elements immediately after they've served their purpose
+ */
+function determineMaxBarValueWidth(rowData) {
+    var _this = this;
+    this.maxBarLabelWidth = 0;
+    this.svg
+        .selectAll('text.dummy-left')
+        .data(rowData)
+        .enter()
+        .append('text')
+        .attr('class', 'dummy-left')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 12)
+        .text(rowLeftSelector)
+        .each(function (_, index, array) {
+        _this.maxBarLabelWidth = Math.max(_this.maxBarLabelWidth, array[index].getComputedTextLength());
+    })
+        .remove();
+    this.svg
+        .selectAll('text.dummy-right')
+        .data(rowData)
+        .enter()
+        .append('text')
+        .attr('class', 'dummy-right')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 12)
+        .text(rowRightSelector)
+        .each(function (_, index, array) {
+        _this.maxBarLabelWidth = Math.max(_this.maxBarLabelWidth, array[index].getComputedTextLength());
+    })
+        .remove();
+}
+function setupInputs(doubleBarData) {
+    this.tooltip = __WEBPACK_IMPORTED_MODULE_1_d3_tip__()
+        .attr('class', 'd3-tooltip')
+        .html(rowTooltipSelector);
+    var _a = Object(__WEBPACK_IMPORTED_MODULE_4_d3_array__["i" /* extent */])(doubleBarData.rows, rowLeftSelector), leftMax = _a[1];
+    var _b = Object(__WEBPACK_IMPORTED_MODULE_4_d3_array__["i" /* extent */])(doubleBarData.rows, rowRightSelector), rightMax = _b[1];
+    var maxOfBoth = Math.max(leftMax, rightMax);
+    this.leftBarWidth.domain([0, maxOfBoth]);
+    this.rightBarWidth.domain([0, maxOfBoth]);
+    this.rowYPosition
+        .paddingInner(.7)
+        .paddingOuter(this.rowYPosition.paddingInner() / 2)
+        .domain(sequence(doubleBarData.rows.length));
+}
+function setupRender(doubleBarData, config) {
+    var _this = this;
+    this.svg.call(this.tooltip);
+    if (this.svgRows) {
+        console.log(this.svgRows);
+        this.svgRows.remove();
+    }
+    this.svgRows = this.svg
+        .selectAll('g.chart-row')
+        .data(doubleBarData.rows)
+        .enter()
+        .append('g')
+        .attr('class', 'chart-row')
+        .attr('fill', 'rgba(255, 255, 255, 0)');
+    this.svgRows
+        .on('mouseover', function (data, index, array) {
+        var targetSelf = array[index];
+        _this.tooltip.show(data, targetSelf);
+    })
+        .on('mouseout', function (data) {
+        _this.tooltip.hide(data);
+    });
+    this.svgRows
+        .append('rect')
+        .attr('x', 0)
+        .attr('rx', 5)
+        .attr('ry', 5)
+        .attr('fill-opacity', 0.5)
+        .attr('class', 'row-highlight');
+    this.svgRows
+        .append('text')
+        .attr('dy', '.35em')
+        .attr('fill', '#000')
+        .attr('class', 'legend-text')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 11);
+    this.svgRows
+        .append('text')
+        .attr('dy', '.35em')
+        .attr('text-anchor', 'end')
+        .attr('class', 'left-value')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 12)
+        .attr('fill', '#888888')
+        .text(rowLeftSelector);
+    this.svgRows
+        .append('text')
+        .attr('dy', '.35em')
+        .attr('class', 'right-value')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 12)
+        .attr('fill', '#888888')
+        .text(rowRightSelector);
+    this.svgRows
+        .append('rect')
+        .attr('class', 'left-bar')
+        .attr('fill', (config && config.leftColor) || this.options.leftColor.default);
+    this.svgRows
+        .append('rect')
+        .attr('class', 'right-bar')
+        .attr('fill', (config && config.rightColor) || this.options.rightColor.default);
+    this.svg
+        .append('text')
+        .attr('y', 0)
+        .attr('dy', '.7em')
+        .attr('text-anchor', 'end')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 11)
+        .attr('fill', '#888888')
+        .attr('class', 'left-title title');
+    this.svg
+        .append('text')
+        .attr('y', 0)
+        .attr('dy', '.7em')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 11)
+        .attr('fill', '#888888')
+        .attr('class', 'right-title title');
+}
+function setupSizing(doubleBarData) {
+    var _this = this;
+    this.tooltip.offset([0, -this.width / 2 + this.barOriginX]);
+    // Update our scales
+    this.rowYPosition.range([15, this.height]);
+    this.leftBarWidth.range([1, this.halfGraphBarMaxWidth]);
+    this.rightBarWidth.range([1, this.halfGraphBarMaxWidth]);
+    this.svgRows.attr('transform', function (data, index) {
+        return "translate(0, " + _this.rowYPosition(index) + ")";
+    });
+    this.svgRows
+        .selectAll('rect.row-highlight')
+        .attr('width', this.width)
+        .attr('height', this.rowHighlightThickness)
+        .attr('y', (this.rowHeight - this.rowHighlightThickness) / 2);
+    this.svgRows
+        .selectAll('text.legend-text')
+        .attr('x', 8)
+        .attr('y', this.rowHeight / 2)
+        .text(rowNameSelector)
+        .each(truncateText(this.legendTextWidth));
+    this.svgRows
+        .selectAll('text.left-value')
+        .attr('x', function (item) {
+        return (_this.barOriginX -
+            _this.leftBarWidth(rowLeftSelector(item)) -
+            5);
+    })
+        .attr('y', this.rowHeight / 2);
+    this.svgRows
+        .selectAll('text.right-value')
+        .attr('x', function (item) {
+        return (_this.barOriginX +
+            _this.rightBarWidth(rowRightSelector(item)) +
+            5);
+    })
+        .attr('y', this.rowHeight / 2);
+    this.svgRows
+        .selectAll('rect.left-bar')
+        .attr('x', function (item) {
+        return _this.barOriginX - _this.leftBarWidth(rowLeftSelector(item));
+    })
+        .attr('y', this.barMargin)
+        .attr('width', function (item) {
+        return _this.leftBarWidth(rowLeftSelector(item));
+    })
+        .attr('height', this.barHeight);
+    this.svgRows
+        .selectAll('rect.right-bar')
+        .attr('x', this.barOriginX)
+        .attr('y', this.barMargin)
+        .attr('width', function (item) {
+        return _this.rightBarWidth(rowRightSelector(item));
+    })
+        .attr('height', this.barHeight);
+    this.svg
+        .select('text.left-title')
+        .attr('x', this.barOriginX - 10)
+        .text(doubleBarData.leftTitle)
+        .each(truncateText(this.titleTextWidth));
+    this.svg
+        .select('text.right-title')
+        .attr('x', this.barOriginX + 10)
+        .text(doubleBarData.rightTitle)
+        .each(truncateText(this.titleTextWidth));
+}
+function createChartData(data, config) {
+    var dimensionName = config.query_fields.dimensions[0].name;
+    var leftMeasureName = config.query_fields.measures[0].name;
+    var rightMeasureName = config.query_fields.measures[1].name;
+    return {
+        leftTitle: config.query_fields.measures[0].label,
+        rightTitle: config.query_fields.measures[1].label,
+        rows: data.map(function (row) {
+            return {
+                name: row[dimensionName].value,
+                left: row[leftMeasureName].value,
+                right: row[rightMeasureName].value
+            };
+        })
+    };
+}
+// Initial Setup
+function create(element, settings) {
+    element.innerHTML = style;
+    this.svg = __WEBPACK_IMPORTED_MODULE_0_d3__["select"](element).append('svg');
+}
+function updateAsync(data, element, config, queryResponse, details, doneRendering) {
+    if (!validateInputs.call(this, queryResponse)) {
+        return;
+    }
+    this.width = element.clientWidth;
+    this.height = element.clientHeight;
+    this.svg
+        .attr('width', this.width)
+        .attr('height', this.height);
+    var chartData = createChartData.call(this, data, config);
+    setupInputs.call(this, chartData);
+    determineMaxBarValueWidth.call(this, chartData.rows);
+    setupRender.call(this, chartData, config);
+    setupSizing.call(this, chartData);
+    doneRendering();
+}
 var vis = {
-    id: 'sunburst',
-    label: 'Sunburst',
+    id: 'doubleBar',
+    label: 'Double Bar',
     options: {
-        color_range: {
-            type: 'array',
-            label: 'Color Range',
-            display: 'colors',
-            default: ['#dd3333', '#80ce5d', '#f78131', '#369dc1', '#c572d3', '#36c1b3', '#b57052', '#ed69af']
+        leftColor: {
+            label: 'Left Bars Color',
+            default: '#FEC500',
+            type: 'string',
+            display: 'color'
+        },
+        rightColor: {
+            label: 'Right Bars Color',
+            default: '#42B3D5',
+            type: 'string',
+            display: 'color'
         }
     },
-    // Set up the initial state of the visualization
-    create: function (element, config) {
-        element.style.fontFamily = "\"Open Sans\", \"Helvetica\", sans-serif";
-        this.svg = __WEBPACK_IMPORTED_MODULE_0_d3__["select"](element).append('svg');
-    },
+    rowYPosition: Object(__WEBPACK_IMPORTED_MODULE_3_d3_scale__["i" /* scaleBand */])().align(0),
+    leftBarWidth: Object(__WEBPACK_IMPORTED_MODULE_3_d3_scale__["l" /* scaleLinear */])(),
+    rightBarWidth: Object(__WEBPACK_IMPORTED_MODULE_3_d3_scale__["l" /* scaleLinear */])(),
+    create: create,
     // Render in response to the data or settings changing
-    update: function (data, element, config, queryResponse) {
-        if (!Object(__WEBPACK_IMPORTED_MODULE_1__common_utils__["b" /* handleErrors */])(this, queryResponse, {
-            min_pivots: 0, max_pivots: 0,
-            min_dimensions: 1, max_dimensions: undefined,
-            min_measures: 1, max_measures: 1
-        }))
-            return;
-        var width = element.clientWidth;
-        var height = element.clientHeight;
-        var radius = Math.min(width, height) / 2 - 8;
-        var dimensions = queryResponse.fields.dimension_like;
-        var measure = queryResponse.fields.measure_like[0];
-        var format = Object(__WEBPACK_IMPORTED_MODULE_1__common_utils__["a" /* formatType */])(measure.value_format) || (function (s) { return s.toString(); });
-        var colorScale = __WEBPACK_IMPORTED_MODULE_0_d3__["scaleOrdinal"]();
-        var color = colorScale.range(config.color_range);
-        data.forEach(function (row) {
-            row.taxonomy = {
-                value: dimensions.map(function (dimension) { return row[dimension.name].value; })
-            };
-        });
-        var partition = __WEBPACK_IMPORTED_MODULE_0_d3__["partition"]().size([2 * Math.PI, radius * radius]);
-        var arc = (__WEBPACK_IMPORTED_MODULE_0_d3__["arc"]()
-            .startAngle(function (d) { return d.x0; })
-            .endAngle(function (d) { return d.x1; })
-            .innerRadius(function (d) { return Math.sqrt(d.y0); })
-            .outerRadius(function (d) { return Math.sqrt(d.y1); }));
-        var svg = (this.svg
-            .html('')
-            .attr('width', '100%')
-            .attr('height', '100%')
-            .append('g')
-            .attr('transform', 'translate(' + width / 2 + ',' + height / 2 + ')'));
-        var label = svg.append('text').attr('y', -height / 2 + 20).attr('x', -width / 2 + 20);
-        var root = __WEBPACK_IMPORTED_MODULE_0_d3__["hierarchy"](burrow(data)).sum(function (d) {
-            return 'data' in d ? d.data[measure.name].value : 0;
-        });
-        partition(root);
-        svg
-            .selectAll('path')
-            .data(root.descendants())
-            .enter()
-            .append('path')
-            .attr('d', arc)
-            .style('fill', function (d) {
-            if (d.depth === 0)
-                return 'none';
-            return color(d.ancestors().map(function (p) { return p.data.name; }).slice(-2, -1));
-        })
-            .style('fill-opacity', function (d) { return 1 - d.depth * 0.15; })
-            .style('transition', function (d) { return 'fill-opacity 0.5s'; })
-            .style('stroke', function (d) { return '#fff'; })
-            .style('stroke-width', function (d) { return '0.5px'; })
-            .on('click', function (d) {
-            console.log(d);
-        })
-            .on('mouseenter', function (d) {
-            var ancestorText = (d.ancestors()
-                .map(function (p) { return p.data.name; })
-                .slice(0, -1)
-                .reverse()
-                .join('-'));
-            label.text(ancestorText + ": " + format(d.value));
-            var ancestors = d.ancestors();
-            svg
-                .selectAll('path')
-                .style('fill-opacity', function (p) {
-                return ancestors.indexOf(p) > -1 ? 1 : 0.15;
-            });
-        })
-            .on('mouseleave', function (d) {
-            label.text('');
-            svg
-                .selectAll('path')
-                .style('fill-opacity', function (d) { return 1 - d.depth * 0.15; });
-        });
+    updateAsync: updateAsync,
+    // Getters
+    /**
+     * The width available to the two bar-graphs and their respective value text
+     */
+    get graphWidth() {
+        return this.width * .65;
+    },
+    get legendWidth() {
+        return this.width - (this.graphWidth + 10);
+    },
+    get legendTextWidth() {
+        return this.legendWidth - 8;
+    },
+    get halfGraphWidth() {
+        return this.graphWidth / 2;
+    },
+    /**
+     * Space available to a single side's bars
+     * @returns {number}
+     */
+    get halfGraphBarMaxWidth() {
+        return this.halfGraphWidth - (this.maxBarLabelWidth + 10);
+    },
+    /**
+     * Factors in the X-position modifier for the title text
+     */
+    get titleTextWidth() {
+        return this.halfGraphWidth - 10;
+    },
+    get rowHeight() {
+        return this.rowYPosition.step();
+    },
+    get barHeight() {
+        return this.rowYPosition.bandwidth();
+    },
+    /**
+     * Thickness of the bar as a ratio of its available space, so it should be a value between 0 and 1
+     */
+    get barSizeRatio() {
+        return this.rowHeight / (this.rowHeight * 3);
+    },
+    get rowHighlightThickness() {
+        return this.rowHeight;
+    },
+    /**
+     * The space from the top of a row to the top of the bar within that row
+     */
+    get barMargin() {
+        return (this.rowHeight - this.barHeight) / 2;
+    },
+    /**
+     * The x position where the two bars (left and right) meet
+     */
+    get barOriginX() {
+        return this.width - this.halfGraphWidth;
     }
 };
 looker.plugins.visualizations.add(vis);
+
+
+/***/ }),
+/* 489 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var __WEBPACK_AMD_DEFINE_FACTORY__, __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;// d3.tip
+// Copyright (c) 2013 Justin Palmer
+//
+// Tooltips for d3.js SVG visualizations
+
+(function (root, factory) {
+  if (true) {
+    // AMD. Register as an anonymous module with d3 as a dependency.
+    !(__WEBPACK_AMD_DEFINE_ARRAY__ = [__webpack_require__(172)], __WEBPACK_AMD_DEFINE_FACTORY__ = (factory),
+				__WEBPACK_AMD_DEFINE_RESULT__ = (typeof __WEBPACK_AMD_DEFINE_FACTORY__ === 'function' ?
+				(__WEBPACK_AMD_DEFINE_FACTORY__.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__)) : __WEBPACK_AMD_DEFINE_FACTORY__),
+				__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__))
+  } else if (typeof module === 'object' && module.exports) {
+    // CommonJS
+    var d3 = require('d3')
+    module.exports = factory(d3)
+  } else {
+    // Browser global.
+    root.d3.tip = factory(root.d3)
+  }
+}(this, function (d3) {
+
+  // Public - contructs a new tooltip
+  //
+  // Returns a tip
+  return function() {
+    var direction = d3_tip_direction,
+        offset    = d3_tip_offset,
+        html      = d3_tip_html,
+        node      = initNode(),
+        svg       = null,
+        point     = null,
+        target    = null
+
+    function tip(vis) {
+      svg = getSVGNode(vis)
+      point = svg.createSVGPoint()
+      document.body.appendChild(node)
+    }
+
+    // Public - show the tooltip on the screen
+    //
+    // Returns a tip
+    tip.show = function() {
+      var args = Array.prototype.slice.call(arguments)
+      if(args[args.length - 1] instanceof SVGElement) target = args.pop()
+
+      var content = html.apply(this, args),
+          poffset = offset.apply(this, args),
+          dir     = direction.apply(this, args),
+          nodel   = getNodeEl(),
+          i       = directions.length,
+          coords,
+          scrollTop  = document.documentElement.scrollTop || document.body.scrollTop,
+          scrollLeft = document.documentElement.scrollLeft || document.body.scrollLeft
+
+      nodel.html(content)
+        .style('opacity', 1).style('pointer-events', 'all')
+
+      while(i--) nodel.classed(directions[i], false)
+      coords = direction_callbacks.get(dir).apply(this)
+      nodel.classed(dir, true)
+      	.style('top', (coords.top +  poffset[0]) + scrollTop + 'px')
+      	.style('left', (coords.left + poffset[1]) + scrollLeft + 'px')
+
+      return tip;
+    };
+
+    // Public - hide the tooltip
+    //
+    // Returns a tip
+    tip.hide = function() {
+      var nodel = getNodeEl()
+      nodel.style('opacity', 0).style('pointer-events', 'none')
+      return tip
+    }
+
+    // Public: Proxy attr calls to the d3 tip container.  Sets or gets attribute value.
+    //
+    // n - name of the attribute
+    // v - value of the attribute
+    //
+    // Returns tip or attribute value
+    tip.attr = function(n, v) {
+      if (arguments.length < 2 && typeof n === 'string') {
+        return getNodeEl().attr(n)
+      } else {
+        var args =  Array.prototype.slice.call(arguments)
+        d3.selection.prototype.attr.apply(getNodeEl(), args)
+      }
+
+      return tip
+    }
+
+    // Public: Proxy style calls to the d3 tip container.  Sets or gets a style value.
+    //
+    // n - name of the property
+    // v - value of the property
+    //
+    // Returns tip or style property value
+    tip.style = function(n, v) {
+      if (arguments.length < 2 && typeof n === 'string') {
+        return getNodeEl().style(n)
+      } else {
+        var args = Array.prototype.slice.call(arguments)
+        d3.selection.prototype.style.apply(getNodeEl(), args)
+      }
+
+      return tip
+    }
+
+    // Public: Set or get the direction of the tooltip
+    //
+    // v - One of n(north), s(south), e(east), or w(west), nw(northwest),
+    //     sw(southwest), ne(northeast) or se(southeast)
+    //
+    // Returns tip or direction
+    tip.direction = function(v) {
+      if (!arguments.length) return direction
+      direction = v == null ? v : functor(v)
+
+      return tip
+    }
+
+    // Public: Sets or gets the offset of the tip
+    //
+    // v - Array of [x, y] offset
+    //
+    // Returns offset or
+    tip.offset = function(v) {
+      if (!arguments.length) return offset
+      offset = v == null ? v : functor(v)
+
+      return tip
+    }
+
+    // Public: sets or gets the html value of the tooltip
+    //
+    // v - String value of the tip
+    //
+    // Returns html value or tip
+    tip.html = function(v) {
+      if (!arguments.length) return html
+      html = v == null ? v : functor(v)
+
+      return tip
+    }
+
+    // Public: destroys the tooltip and removes it from the DOM
+    //
+    // Returns a tip
+    tip.destroy = function() {
+      if(node) {
+        getNodeEl().remove();
+        node = null;
+      }
+      return tip;
+    }
+
+    function d3_tip_direction() { return 'n' }
+    function d3_tip_offset() { return [0, 0] }
+    function d3_tip_html() { return ' ' }
+
+    var direction_callbacks = d3.map({
+      n:  direction_n,
+      s:  direction_s,
+      e:  direction_e,
+      w:  direction_w,
+      nw: direction_nw,
+      ne: direction_ne,
+      sw: direction_sw,
+      se: direction_se
+    }),
+
+    directions = direction_callbacks.keys()
+
+    function direction_n() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.n.y - node.offsetHeight,
+        left: bbox.n.x - node.offsetWidth / 2
+      }
+    }
+
+    function direction_s() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.s.y,
+        left: bbox.s.x - node.offsetWidth / 2
+      }
+    }
+
+    function direction_e() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.e.y - node.offsetHeight / 2,
+        left: bbox.e.x
+      }
+    }
+
+    function direction_w() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.w.y - node.offsetHeight / 2,
+        left: bbox.w.x - node.offsetWidth
+      }
+    }
+
+    function direction_nw() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.nw.y - node.offsetHeight,
+        left: bbox.nw.x - node.offsetWidth
+      }
+    }
+
+    function direction_ne() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.ne.y - node.offsetHeight,
+        left: bbox.ne.x
+      }
+    }
+
+    function direction_sw() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.sw.y,
+        left: bbox.sw.x - node.offsetWidth
+      }
+    }
+
+    function direction_se() {
+      var bbox = getScreenBBox()
+      return {
+        top:  bbox.se.y,
+        left: bbox.e.x
+      }
+    }
+
+    function initNode() {
+      var node = d3.select(document.createElement('div'));
+      node.style('position', 'absolute').style('top', 0).style('opacity', 0)
+      	.style('pointer-events', 'none').style('box-sizing', 'border-box')
+
+      return node.node()
+    }
+
+    function getSVGNode(el) {
+      el = el.node()
+      if(el.tagName.toLowerCase() === 'svg')
+        return el
+
+      return el.ownerSVGElement
+    }
+
+    function getNodeEl() {
+      if(node === null) {
+        node = initNode();
+        // re-add node to DOM
+        document.body.appendChild(node);
+      };
+      return d3.select(node);
+    }
+
+    // Private - gets the screen coordinates of a shape
+    //
+    // Given a shape on the screen, will return an SVGPoint for the directions
+    // n(north), s(south), e(east), w(west), ne(northeast), se(southeast), nw(northwest),
+    // sw(southwest).
+    //
+    //    +-+-+
+    //    |   |
+    //    +   +
+    //    |   |
+    //    +-+-+
+    //
+    // Returns an Object {n, s, e, w, nw, sw, ne, se}
+    function getScreenBBox() {
+      var targetel   = target || d3.event.target;
+
+      while ('undefined' === typeof targetel.getScreenCTM && 'undefined' === targetel.parentNode) {
+          targetel = targetel.parentNode;
+      }
+
+      var bbox       = {},
+          matrix     = targetel.getScreenCTM(),
+          tbbox      = targetel.getBBox(),
+          width      = tbbox.width,
+          height     = tbbox.height,
+          x          = tbbox.x,
+          y          = tbbox.y
+
+      point.x = x
+      point.y = y
+      bbox.nw = point.matrixTransform(matrix)
+      point.x += width
+      bbox.ne = point.matrixTransform(matrix)
+      point.y += height
+      bbox.se = point.matrixTransform(matrix)
+      point.x -= width
+      bbox.sw = point.matrixTransform(matrix)
+      point.y -= height / 2
+      bbox.w  = point.matrixTransform(matrix)
+      point.x += width
+      bbox.e = point.matrixTransform(matrix)
+      point.x -= width / 2
+      point.y -= height / 2
+      bbox.n = point.matrixTransform(matrix)
+      point.y += height
+      bbox.s = point.matrixTransform(matrix)
+
+      return bbox
+    }
+    
+    // Private - replace D3JS 3.X d3.functor() function
+    function functor(v) {
+    	return typeof v === "function" ? v : function() {
+        return v
+    	}
+    }
+
+    return tip
+  };
+
+}));
 
 
 /***/ })
